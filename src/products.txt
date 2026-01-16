@@ -1,0 +1,3 @@
+Laptop,50000
+Mobile,20000
+Headphones,2000
