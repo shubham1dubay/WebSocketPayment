@@ -18,7 +18,8 @@ const createFallback = () => {
     };
 };
 
-let redis;
+const fallback = createFallback();
+let redisClient = null;
 try {
     const client = createClient({
         url: process.env.REDIS_URL || "redis://127.0.0.1:6379",
@@ -34,17 +35,32 @@ try {
     (async () => {
         try {
             await client.connect();
-            redis = client;
+            redisClient = client;
         } catch (err) {
             try { client.removeAllListeners(); } catch (e) { }
             try { client.disconnect && await client.disconnect(); } catch (e) { }
             console.error("Failed to connect to Redis, using in-memory fallback:", err.message || err);
-            redis = createFallback();
+            redisClient = null;
         }
     })();
 } catch (err) {
     console.error("Redis client initialization failed, using in-memory fallback:", err.message || err);
-    redis = createFallback();
+    redisClient = null;
 }
 
-module.exports = redis;
+const api = {
+    async get(key) {
+        if (redisClient && typeof redisClient.get === 'function') {
+            try { return await redisClient.get(key); } catch (e) { console.error('Redis get error:', e); }
+        }
+        return await fallback.get(key);
+    },
+    async setEx(key, ttl, value) {
+        if (redisClient && typeof redisClient.setEx === 'function') {
+            try { return await redisClient.setEx(key, ttl, value); } catch (e) { console.error('Redis setEx error:', e); }
+        }
+        return await fallback.setEx(key, ttl, value);
+    }
+};
+
+module.exports = api;
